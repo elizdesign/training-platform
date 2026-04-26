@@ -1,0 +1,68 @@
+
+# список контейнеров, которые мы запускаем
+services:
+  postgres:
+    # готовый образ из Docker hub
+    image: postgres:15-alpine
+    environment:
+      # имя БД, создастся автоматически
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+      # имя пользователя БД
+      POSTGRES_USER: ${POSTGRES_USER:-appuser}
+      # пароль (берем из .env или по умолчанию)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secretpassword}
+    ports:
+      - "5432:5432"
+    # сохраняем данные БД даже после перезапуска контейнеров
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # проверяем жива ли база
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appuser} -d ${POSTGRES_DB:-appdb}"]
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+  backend:
+    # собираем образ из Dockerfile в текущ папке
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # как бэк подключается к БД
+      DATABASE_URL: postgresql://${POSTGRES_USER:-appuser}:${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/${POSTGRES_DB:-appdb}
+      APP_ENV: development
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # синхронизация кода с хостом
+    volumes:
+      - ./:/app
+    networks:
+      - app_network
+
+  # сервис для миграций
+  migrate:
+    build: .
+    # здесь заменить на команду от бэка
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-appuser}:${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/${POSTGRES_DB:-appdb}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_network
+    profiles:
+      - tools
+
+# том для данных postgresql
+volumes:
+  postgres_data:
+
+# сеть для общения контейнеров
+networks:
+  app_network:
+    driver: bridge

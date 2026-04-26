@@ -1,0 +1,21 @@
+# Файлы с секретами
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# База данных
+postgres_data/
+
+# IDE
+.vscode/
+.idea/
+
+# Логи
+*.log
+
+# Docker
+*.pid
