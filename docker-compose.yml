@@ -32,8 +32,10 @@ services:
     environment:
       # как бэк подключается к БД
       DATABASE_URL: postgresql://${POSTGRES_USER:-appuser}:${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/${POSTGRES_DB:-appdb}
-      APP_ENV: development
-      LOG_LEVEL: info
+      SECRET_KEY: ${SECRET_KEY}
+      #ВРЕМЕННО ЗАКОММЕНТИРОВАННО ЖДЕМ БЭК
+      #APP_ENV: development
+      #LOG_LEVEL: info
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,11 +44,15 @@ services:
       - ./:/app
     networks:
       - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # сервис для миграций
   migrate:
     build: .
-    # здесь заменить на команду от бэка
     command: alembic upgrade head
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-appuser}:${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/${POSTGRES_DB:-appdb}

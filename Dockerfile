@@ -7,13 +7,13 @@ workdir /app
 #сис пакеты для пайтон библиотек
 run apt-get update && apt-get install -y \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists*
 
 #коп файлов с комп внутрь контейнера
 #сначала завсимости
-#ВРЕМЕННО ЗАКОМЕТИРОВАНО(ЖДЕМ ОТ БЭКА)
-#copy requirements.txt .
-#run pip install --no-cache-dir -r requirements.txt
+copy requirements.txt .
+run pip install --no-cache-dir -r requirements.txt
 
 #коп весь остальной код
 copy . . 
@@ -23,7 +23,7 @@ run useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 user appuser
 
 #команда, запускающайся при запуске контейнера
-cmd ["python", "-c", "print('Docker is ready! Waiting for backend code...')"]
+cmd ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 
 
