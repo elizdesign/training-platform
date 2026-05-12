@@ -1,74 +1,69 @@
 import sys
-from pathlib import Path
-import bcrypt
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Добавляем корень проекта
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Импортируем НАПРЯМУЮ (не через __init__.py)
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import declarative_base
+from backend.db.base import Base
+from backend.db.session import engine
 
-# Настройки БД
-DATABASE_URL = "postgresql+psycopg2://postgres:postgres@localhost:5432/fitness_db"
-engine = create_engine(DATABASE_URL)
-Base = declarative_base()
+# 🔴 ИМПОРТИРУЕМ ВСЕ МОДЕЛИ СЮДА (чтобы SQLAlchemy их увидел)
+from backend.models.user import User, Role
+from backend.models.client import Client
+from backend.models.workout import Workout
+from backend.models.exercise import Exercise
+from backend.models.photo import ProgressPhoto
+from backend.models.progress import Measurement
 
-# Определяем модели ПРЯМО ЗДЕСЬ (чтобы не было конфликтов импорта)
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from backend.services.auth import get_password_hash
+from sqlalchemy.orm import Session
 
-
-class RoleModel(Base):
-    __tablename__ = "roles"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), unique=True, nullable=False)
-
-
-class UserModel(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(255), nullable=True)
-    is_active = Column(Boolean, default=True)
-    is_superuser = Column(Boolean, default=False)
-    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+def recreate_db():
+    print("🗄️  Начинаем перезагрузку БД...")
 
 
 def recreate_db():
-    print("⚠️  Начинаем перезагрузку БД...")
+    print("🔄 Начинаем перезагрузку БД...")
 
-    # Удаляем таблицы
-    print("🗑️  Удаляем старые таблицы...")
-    Base.metadata.drop_all(bind=engine)
-
-    # Создаём заново
-    print("🔨 Создаём новые таблицы...")
-    Base.metadata.create_all(bind=engine)
-    print("✅ Таблицы созданы.")
-
-    # Заполняем
-    print("📝 Заполняем данными...")
+    # 1. Подключаемся и удаляем ВСЁ (с каскадом)
+    print("🗑️ Удаляем старые таблицы...")
     with engine.connect() as conn:
-        # Роли
-        conn.execute(text("INSERT INTO roles (id, name) VALUES (1, 'admin')"))
-        conn.execute(text("INSERT INTO roles (id, name) VALUES (2, 'trainer')"))
+        # Сначала удаляем зависимые таблицы
+        conn.execute(text("DROP TABLE IF EXISTS clients CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS users CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS roles CASCADE"))
         conn.commit()
+    print("✅ Таблицы удалены")
 
-        # Админ
-        password = "admin123"
-        hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    # 2. Создаем новые таблицы через SQLAlchemy
+    print("🏗️ Создаем новые таблицы...")
+    Base.metadata.create_all(bind=engine)
+    print("✅ Таблицы созданы")
 
-        conn.execute(text("""
-            INSERT INTO users (email, hashed_password, full_name, is_superuser, role_id)
-            VALUES ('admin@fitness.com', :pwd, 'Admin User', TRUE, 1)
-        """), {"pwd": hashed_pw})
-        conn.commit()
+    # 3. Заполняем данными
+    print("📝 Заполняем данными...")
+    with Session(engine) as session:
+        # Создаем роли
+        admin_role = Role(id=1, name="admin")
+        trainer_role = Role(id=2, name="trainer")
 
-    print("👤 Админ: admin@fitness.com / admin123")
+        session.add(admin_role)
+        session.add(trainer_role)
+        session.commit()
+
+        # Создаем админа
+        admin_user = User(
+            email="admin@fitness.com",
+            hashed_password=get_password_hash("admin123"),
+            full_name="Admin User",
+            role_id=1,
+            is_active=True  # Важно!
+        )
+
+        session.add(admin_user)
+        session.commit()
+
+        print("✅ Админ создан: admin@fitness.com / admin123")
+
     print("🎉 Готово!")
 
 

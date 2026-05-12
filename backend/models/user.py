@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.db.base import Base
+from backend.db.base import Base
 
 
 class Role(Base):
@@ -15,6 +15,7 @@ class Role(Base):
 
 class User(Base):
     __tablename__ = "users"
+    clients = relationship("Client", back_populates="trainer")
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
@@ -26,3 +27,5 @@ class User(Base):
 
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     role = relationship("Role", back_populates="users")
+
+    workouts = relationship("Workout", back_populates="trainer")
